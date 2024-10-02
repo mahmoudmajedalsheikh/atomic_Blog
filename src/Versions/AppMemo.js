@@ -1,7 +1,5 @@
-import { useEffect, useState ,memo} from "react";
+import {memo, useEffect, useState,useMemo, useCallback } from "react";
 import { faker } from "@faker-js/faker";
-import {PostProvider,usePosts} from "./PostContext";
-// import Test  from "./Test";
 
 function createRandomPost() {
   return {
@@ -10,15 +8,32 @@ function createRandomPost() {
   };
 }
 
-
-
-
-
-// --------------------------{ App Component } ------------------------//
 function App() {
-
-// -------------{ Side Effects } -------------//
+  const [posts, setPosts] = useState(() =>
+    Array.from({ length: 30 }, () => createRandomPost())
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [isFakeDark, setIsFakeDark] = useState(false);
+
+  // Derived state. These are the posts that will actually be displayed
+  const searchedPosts =
+    searchQuery.length > 0
+      ? posts.filter((post) =>
+          `${post.title} ${post.body}`
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase())
+        )
+      : posts;
+
+  const handleAddPost = useCallback(function handleAddPost(post) {
+    setPosts((posts) => [post, ...posts]);
+    
+  },[])
+
+  function handleClearPosts() {
+    setPosts([]);
+  }
+
   // Whenever `isFakeDark` changes, we toggle the `fake-dark-mode` class on the HTML element (see in "Elements" dev tool).
   useEffect(
     function () {
@@ -26,50 +41,55 @@ function App() {
     },
     [isFakeDark]
   );
-// ---------------{ JSX } ------------//
+//.===================================
+
+  const archiveOptions= useMemo(()=>{
+    return{
+    show:false,
+    title:`Post archive in addtion to ${posts.length} posts`
+  }},[posts.length])
+
   return (
-// 2- provide Value To Child Components
-    <>
     <section>
       <button
         onClick={() => setIsFakeDark((isFakeDark) => !isFakeDark)}
         className="btn-fake-dark-mode"
-        >
+      >
         {isFakeDark ? "☀️" : "🌙"}
       </button>
 
-    <PostProvider>
-      <Header/>
-      <Main/>
-      <Archive/>
+      <Header
+        posts={searchedPosts}
+        onClearPosts={handleClearPosts}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
+      <Main posts={searchedPosts} onAddPost={handleAddPost} />
+      <Archive archiveOptions={archiveOptions} onAddPost={handleAddPost} setIsFakeDark={setIsFakeDark}/>
       <Footer />
-    </PostProvider>
-
     </section>
-</>
   );
 }
-// --------------------------{ Header Component } ------------------------//
-function Header() {
-    // 3- create Consumer // To Take Data // By use useContext //Consume Context Value
-  const {onClearPosts} = usePosts();
 
+function Header({ posts, onClearPosts, searchQuery, setSearchQuery }) {
   return (
     <header>
       <h1>
         <span>⚛️</span>The Atomic Blog
       </h1>
       <div>
-        <Results/>
-        <SearchPosts/>
-        <button onClick={onClearPosts}>Clear posts</button> 
+        <Results posts={posts} />
+        <SearchPosts
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+        <button onClick={onClearPosts}>Clear posts</button>
       </div>
     </header>
   );
 }
-// --------------------------{ SearchPosts Component } ------------------------//
-function SearchPosts() {
-  const {searchQuery, setSearchQuery} = usePosts()
+
+function SearchPosts({ searchQuery, setSearchQuery }) {
   return (
     <input
       value={searchQuery}
@@ -78,34 +98,29 @@ function SearchPosts() {
     />
   );
 }
-// --------------------------{ Results Component } ------------------------//
-function Results() {
-  const {posts} = usePosts()
+
+function Results({ posts }) {
   return <p>🚀 {posts.length} atomic posts found</p>;
 }
-// --------------------------{ Main Component } ------------------------//
-const Main  =memo(function Main() {
 
+function Main({ posts, onAddPost }) {
   return (
     <main>
-      <FormAddPost/>
-      <Posts/>
+      <FormAddPost onAddPost={onAddPost} />
+      <Posts posts={posts} />
     </main>
   );
-})
-// --------------------------{ Posts Component } ------------------------//
-function Posts() {
-  const {posts} = usePosts()
+}
+
+function Posts({ posts }) {
   return (
     <section>
       <List posts={posts} />
     </section>
   );
 }
-// --------------------------{ FormAddPost Component } ------------------------//
-function FormAddPost() {
-  const {onAddPost} = usePosts()
 
+function FormAddPost({ onAddPost }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -133,10 +148,9 @@ function FormAddPost() {
     </form>
   );
 }
-// --------------------------{ List Component } ------------------------//
+
 function List({ posts }) {
   return (
-    <>
     <ul>
       {posts.map((post, i) => (
         <li key={i}>
@@ -145,24 +159,22 @@ function List({ posts }) {
         </li>
       ))}
     </ul>
-    {/* <Test /> */}
-      </>
   );
 }
-// --------------------------{ Archive Component } ------------------------//
-function Archive() {
-  const {onAddPost} = usePosts()
+
+const Archive = memo(function Archive({ archiveOptions,onAddPost ,setIsFakeDark}) {
   // Here we don't need the setter function. We're only using state to store these posts because the callback function passed into useState (which generates the posts) is only called once, on the initial render. So we use this trick as an optimization technique, because if we just used a regular variable, these posts would be re-created on every render. We could also move the posts outside the components, but I wanted to show you this trick 😉
   const [posts] = useState(() =>
     // 💥 WARNING: This might make your computer slow! Try a smaller `length` first
-    Array.from({ length: 10000 }, () => createRandomPost())
+    Array.from({ length: 30000 }, () => createRandomPost())
   );
 
-  const [showArchive, setShowArchive] = useState(false);
+
+  const [showArchive, setShowArchive] = useState(archiveOptions.show);
 
   return (
     <aside>
-      <h2>Post archive</h2>
+      <h2>{archiveOptions.title}</h2>
       <button onClick={() => setShowArchive((s) => !s)}>
         {showArchive ? "Hide archive posts" : "Show archive posts"}
       </button>
@@ -181,13 +193,10 @@ function Archive() {
       )}
     </aside>
   );
-}
-// --------------------------{ Footer Component } ------------------------//
+})
+
 function Footer() {
   return <footer>&copy; by The Atomic Blog ✌️</footer>;
 }
-
-
-
 
 export default App;
